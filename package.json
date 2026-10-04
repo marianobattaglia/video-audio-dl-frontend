@@ -1,0 +1,12 @@
+{
+  "name": "video-audio-dl-frontend",
+  "version": "1.0.0",
+  "private": true,
+  "description": "Static browser client for the Video Audio DL API",
+  "type": "module",
+  "scripts": {
+    "build": "node scripts/build.mjs",
+    "dev": "node scripts/dev.mjs"
+  },
+  "engines": { "node": ">=22" }
+}

@@ -63,13 +63,17 @@ El resultado es `dist/`. `dist/config.js` contiene solo el origen público de la
 5. Publicá el sitio y copiá su origen exacto al `FRONTEND_ORIGINS` del backend. Si todavía no se validó el contenedor en el host, completá esa validación antes de usar descargas públicas.
 6. Para previews, agregá cada origen autorizado explícitamente o usá un dominio estable de pruebas. No permitas `*.vercel.app`.
 
-`vercel.json` establece cabeceras de seguridad y permite conexiones HTTPS. El código dirige las solicitudes exclusivamente al origen configurado. No hace falta Docker en el frontend. Una nueva URL de API requiere reconstruir el frontend; cambiar el código del backend manteniendo su URL no lo requiere.
+La construcción inserta una CSP en el HTML antes de los scripts: conexiones solo al origen exacto de la API y al propio sitio. Se combina por intersección con las cabeceras de `vercel.json`, que conservan la exigencia HTTPS. No hay scripts externos. Producción exige HTTPS y desarrollo admite HTTP exclusivamente en loopback. Una nueva URL de API requiere reconstruir el frontend.
+
+Para volver al backend original desde el servicio de prueba en otra región, actualizá `API_BASE_URL` en Vercel y generá un nuevo despliegue. Editar `.env.example` o este README no cambia la variable del proyecto alojado.
 
 ## Acceso abierto y clave opcional
 
 El backend usa `AUTH_REQUIRED=false` por defecto: no se muestra el campo, no se pide clave y no se envía `Authorization`. La interfaz descubre el modo con la misma petición `/healthz` que comprueba disponibilidad al intentar descargar; no requiere variables ni secretos adicionales en Vercel. Al confirmar el modo abierto, borra cualquier clave anterior de la sesión.
 
-Para activar la función más adelante, configurá `AUTH_REQUIRED=true` y una `ACCESS_CREDENTIAL` válida en el backend, y reinicialo. En el siguiente intento de descarga aparece el campo y se requiere ingresar la clave. Se conserva en `sessionStorage` durante esa sesión de pestaña, con respaldo en memoria si el navegador bloquea el almacenamiento; nunca se escribe en assets ni almacenamiento permanente. Viaja en `Authorization: Bearer ...` para crear, consultar, cancelar y solicitar un permiso de descarga. Si una API anterior no incluye `authRequired`, la interfaz conserva el comportamiento protegido y pide clave.
+Para activar la función, configurá `AUTH_REQUIRED=true` y una `ACCESS_CREDENTIAL` válida en el backend, y reinicialo. En el siguiente intento aparece el campo. La clave permanece solo en memoria de la página: recargar, salir o confirmar modo abierto la borra. Se elimina la entrada heredada de `sessionStorage` sin leerla; no se guarda en ningún storage ni asset. Viaja en `Authorization: Bearer ...` para crear, consultar, cancelar y solicitar un permiso. Salud no recibe clave. Si una API anterior omite `authRequired`, la interfaz pide clave.
+
+Si se configura una sesión de YouTube en el backend, el acceso protegido es obligatorio. El operador carga el archivo exclusivamente como Secret File privado en Render; la página no lee, recibe ni transmite cookies de YouTube. Nunca incluirlas en GitHub, variables de Vercel o el chat. La sesión opcional está implementada localmente; calificación y provisión reales siguen pendientes. Consultá `PRIVATE-SESSION.md` del backend para carga, rotación, revocación y rollback protegido. El proveedor y backend necesitan acceso al secreto y YouTube puede seguir rechazando la descarga.
 
 En ambos modos, el archivo se entrega con un permiso aleatorio de un solo uso que vence por defecto a los 60 segundos; se usa una descarga normal del navegador, sin cargar todo el archivo en un `Blob`. Los límites de recursos y solicitudes siguen activos.
 

@@ -37,14 +37,9 @@ try {
   connectionDialog.showModal();
 }
 
-try { credentialInput.value = sessionStorage.getItem(SESSION_KEY) || ""; } catch { /* memory-only entry remains usable */ }
-credentialInput.addEventListener("input", () => {
-  if (authRequired !== true) return;
-  try {
-    if (credentialInput.value) sessionStorage.setItem(SESSION_KEY, credentialInput.value);
-    else sessionStorage.removeItem(SESSION_KEY);
-  } catch { /* storage may be disabled */ }
-});
+// Discard credentials retained by an older client; keep new entries in this page only.
+try { sessionStorage.removeItem(SESSION_KEY); } catch { /* storage may be disabled */ }
+credentialInput.value = "";
 
 let activeJobId = null;
 let pollTimer = null;
@@ -339,6 +334,7 @@ fileLink.addEventListener("click", async (event) => {
 });
 
 window.addEventListener("pagehide", () => {
+  credentialInput.value = "";
   leaving = true;
   connectionRevision += 1;
   stopPolling();

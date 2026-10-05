@@ -77,6 +77,8 @@ Si se configura una sesión de YouTube en el backend, el acceso protegido es obl
 
 En ambos modos, el archivo se entrega con un permiso aleatorio de un solo uso que vence por defecto a los 60 segundos; se usa una descarga normal del navegador, sin cargar todo el archivo en un `Blob`. Los límites de recursos y solicitudes siguen activos.
 
+Cuando el trabajo termina, la interfaz solicita el permiso antes de mostrar **Descargar archivo** y asigna su URL validada al enlace real. El clic del usuario abre directamente ese enlace en otra pestaña, con `noopener`, sin Referer y sin un clic simulado después de una request. El backend indica la descarga con `Content-Disposition: attachment`. Si el permiso vence antes del clic, se renueva y la interfaz pide pulsar el enlace nuevamente. El enlace no contiene la clave compartida ni cookies; el permiso breve también es privado y no debe compartirse. Durante la entrega se consulta el estado del trabajo hasta que termine o deje de estar disponible.
+
 ## Servicio dormido o interrumpido
 
 - Cada intento de preparar una descarga hace primero `GET /healthz`, sin clave y sin crear un trabajo.

@@ -50,7 +50,9 @@ let submitting = false;
 let wakeAttempt = null;
 let connectionRevision = 0;
 let leaving = false;
-let fileRequestPending = false;
+let fileRequestPending = null;
+let fileTicket = null;
+let fileDeliveryRequested = false;
 
 function apiUrl(pathname) { return new URL(pathname, `${apiOrigin}/`).href; }
 
@@ -155,12 +157,47 @@ connectionClose.addEventListener("click", () => { connectionDialog.close(); subm
 
 function stopPolling() { clearTimeout(pollTimer); pollTimer = null; }
 
+function clearFileLink() {
+  fileTicket = null;
+  fileDeliveryRequested = false;
+  fileLink.hidden = true;
+  fileLink.removeAttribute("href");
+}
+
+async function prepareFileLink(filename, refreshed = false) {
+  const id = activeJobId;
+  const revision = jobRevision;
+  if (!id || leaving || (fileRequestPending?.id === id && fileRequestPending.revision === revision)) return;
+  const attempt = { id, revision };
+  fileRequestPending = attempt;
+  clearFileLink();
+  jobMessage.textContent = "Preparando el enlace de descarga…";
+  try {
+    const ticket = await request(`/api/jobs/${id}/ticket`, { method: "POST" });
+    if (activeJobId !== id || jobRevision !== revision || leaving) return;
+    const target = new URL(ticket.downloadUrl, `${apiOrigin}/`);
+    if (target.origin !== apiOrigin || target.pathname !== `/api/jobs/${id}/file`
+      || target.username || target.password || target.hash
+      || !/^[A-Za-z0-9_-]{43}$/.test(target.searchParams.get("ticket") || "")
+      || [...target.searchParams].length !== 1
+      || !Number.isFinite(ticket.expiresAt) || ticket.expiresAt <= Date.now()) throw new Error(CONNECTION_FAILURE);
+    fileTicket = { id, revision, expiresAt: ticket.expiresAt, filename: ticket.filename || filename || "descarga" };
+    fileLink.href = target.href;
+    fileLink.download = fileTicket.filename;
+    fileLink.hidden = false;
+    jobMessage.textContent = refreshed ? "Enlace actualizado. Pulsá Descargar archivo nuevamente." : fileTicket.filename;
+  } catch (error) {
+    if (!leaving && activeJobId === id && jobRevision === revision) showJobError(error, [404, 410].includes(error.status) ? "El archivo ya no está disponible" : "No se pudo preparar la descarga");
+  } finally {
+    if (fileRequestPending === attempt) fileRequestPending = null;
+  }
+}
+
 function showJob() {
   jobPanel.hidden = false;
   jobError.hidden = true;
   jobError.textContent = "";
-  fileLink.hidden = true;
-  fileLink.removeAttribute("href");
+  clearFileLink();
   progressTrack.hidden = false;
   progressBar.style.width = "0%";
   jobPercent.textContent = "";
@@ -177,8 +214,7 @@ function showJobError(error, title = "No se pudo completar") {
   jobError.hidden = false;
   progressTrack.hidden = true;
   jobPercent.textContent = "";
-  fileLink.hidden = true;
-  fileLink.removeAttribute("href");
+  clearFileLink();
   cancelButton.hidden = true;
   resetButton.hidden = false;
 }
@@ -198,14 +234,18 @@ function renderJob(job) {
     jobMessage.textContent = job.filename || "Descarga preparada para tu dispositivo.";
     progressBar.style.width = "100%";
     jobPercent.textContent = "100%";
-    fileLink.href = "#";
-    fileLink.hidden = false;
+    if (fileDeliveryRequested) {
+      jobMessage.textContent = "Esperando la entrega del archivo al navegador…";
+      return;
+    }
+    if (fileTicket?.id === activeJobId && fileTicket.revision === jobRevision && fileTicket.expiresAt > Date.now()) fileLink.hidden = false;
+    else void prepareFileLink(job.filename);
     return;
   }
   if (["failed", "cancelled", "delivered"].includes(job.status)) {
     stopPolling();
     setBusy(false);
-    fileLink.hidden = true;
+    clearFileLink();
     progressTrack.hidden = true;
     jobIndicator.className = job.status === "failed" ? "job-indicator is-error" : "job-indicator is-success";
     jobTitle.textContent = job.status === "failed" ? "No se pudo completar" : "Listo";
@@ -223,7 +263,7 @@ async function pollJob() {
     const job = await request(`/api/jobs/${id}`);
     if (id !== activeJobId || revision !== jobRevision || leaving) return;
     renderJob(job);
-    if (["queued", "running"].includes(job.status)) pollTimer = setTimeout(pollJob, 1000);
+    if (["queued", "running"].includes(job.status) || (fileDeliveryRequested && job.status === "complete")) pollTimer = setTimeout(pollJob, 1000);
   } catch (error) {
     if (id !== activeJobId || revision !== jobRevision || leaving) return;
     const lost = [404, 410].includes(error.status);
@@ -302,35 +342,32 @@ resetButton.addEventListener("click", () => {
   activeJobId = null;
   jobPanel.hidden = true;
   jobError.hidden = true;
-  fileLink.hidden = true;
+  clearFileLink();
   setBusy(false);
   urlInput.focus();
 });
 
-fileLink.addEventListener("click", async (event) => {
-  event.preventDefault();
-  if (!activeJobId || fileRequestPending || leaving) return;
+fileLink.addEventListener("click", (event) => {
+  if (!activeJobId || fileRequestPending || fileDeliveryRequested || leaving) { event.preventDefault(); return; }
+  if (!fileTicket || fileTicket.id !== activeJobId || fileTicket.revision !== jobRevision || fileTicket.expiresAt <= Date.now() + 2000) {
+    event.preventDefault();
+    return prepareFileLink(fileTicket?.filename, true);
+  }
+  // A real user click follows the prepared link. Do not fetch the file into a
+  // Blob or simulate a second click after an asynchronous authorization call.
   const id = activeJobId;
-  fileRequestPending = true;
-  try {
-    const ticket = await request(`/api/jobs/${id}/ticket`, { method: "POST" });
-    if (activeJobId !== id || leaving) return;
-    const target = new URL(ticket.downloadUrl, `${apiOrigin}/`);
-    if (target.origin !== apiOrigin || target.pathname !== `/api/jobs/${id}/file`) throw new Error(CONNECTION_FAILURE);
-    const anchor = document.createElement("a");
-    anchor.href = target.href;
-    anchor.download = ticket.filename || "descarga";
-    anchor.referrerPolicy = "no-referrer";
-    anchor.hidden = true;
-    document.body.append(anchor);
-    anchor.click();
-    anchor.remove();
+  const revision = jobRevision;
+  fileDeliveryRequested = true;
+  jobMessage.textContent = "Se solicitó la descarga en tu navegador.";
+  // Keep the href intact until the browser has performed the default action.
+  setTimeout(() => {
+    if (activeJobId !== id || jobRevision !== revision || leaving) return;
     fileLink.hidden = true;
-    jobMessage.textContent = "La descarga comenzará en tu navegador.";
-    pollTimer = setTimeout(pollJob, 1000);
-  } catch (error) {
-    if (!leaving && activeJobId === id) showJobError(error, [404, 410].includes(error.status) ? "El archivo ya no está disponible" : "No se pudo descargar");
-  } finally { fileRequestPending = false; }
+    fileLink.removeAttribute("href");
+    fileTicket = null;
+  }, 0);
+  stopPolling();
+  pollTimer = setTimeout(pollJob, 1000);
 });
 
 window.addEventListener("pagehide", () => {

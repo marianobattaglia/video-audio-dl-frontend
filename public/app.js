@@ -70,7 +70,7 @@ async function request(pathname, { method = "GET", body, timeout = 15000, health
   requests.add(controller);
   const timer = setTimeout(() => controller.abort(), timeout);
   const headers = {};
-  if (!health && authRequired === true) headers.Authorization = `Bearer ${credentialInput.value}`;
+  if (!health && authRequired === true) headers.Authorization = `BearerEncoded ${encodeURIComponent(credentialInput.value)}`;
   if (body !== undefined) headers["Content-Type"] = "application/json";
   try {
     const response = await fetch(apiUrl(pathname), {
@@ -249,7 +249,7 @@ form.addEventListener("submit", async (event) => {
   updateSubmit();
   try {
     if (!await checkReadiness() || leaving) return;
-    if (authRequired && !credentialInput.value.trim()) {
+    if (authRequired && !credentialInput.value) {
       showJobError(new Error("Ingresá la clave de acceso para continuar."), "Se requiere una clave de acceso");
       credentialInput.focus();
       return;

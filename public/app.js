@@ -53,6 +53,7 @@ let leaving = false;
 let fileRequestPending = null;
 let fileTicket = null;
 let fileDeliveryRequested = false;
+let playlistController = null;
 
 function apiUrl(pathname) { return new URL(pathname, `${apiOrigin}/`).href; }
 
@@ -84,6 +85,8 @@ async function request(pathname, { method = "GET", body, timeout = 15000, health
     if (!response.ok) {
       const error = new Error(data.error || "No se pudo completar la solicitud.");
       error.status = response.status;
+      error.retryAfter = Number(response.headers.get("retry-after")) || 0;
+      error.code = data.code === "E_MEDIA_ADMISSION_RATE" ? data.code : null;
       throw error;
     }
     return data;
@@ -97,7 +100,7 @@ async function request(pathname, { method = "GET", body, timeout = 15000, health
 }
 
 function updateSubmit() {
-  submitButton.disabled = !apiOrigin || busy || submitting || Boolean(wakeAttempt) || leaving;
+  submitButton.disabled = !apiOrigin || busy || submitting || Boolean(wakeAttempt) || leaving || Boolean(playlistController?.active);
   submitButton.querySelector(".button-label").textContent = wakeAttempt ? "Conectando…" : busy || submitting ? "Procesando…" : "Preparar descarga";
 }
 
@@ -154,6 +157,21 @@ function checkReadiness() {
 }
 
 connectionClose.addEventListener("click", () => { connectionDialog.close(); submitButton.focus(); });
+
+playlistController = window.createPlaylistController?.({ request, readiness: checkReadiness, apiOrigin,
+  getKind: () => form.querySelector('input[name="kind"]:checked').value,
+  access: () => { if (authRequired && !credentialInput.value) { credentialInput.focus(); return false; } return true; },
+  abortRequests: () => { for (const controller of requests) controller.abort(); },
+  notify: () => {
+    updateSubmit();
+    if (!playlistController) return;
+    if (playlistController.active) {
+      urlInput.disabled = true; clearButton.disabled = true;
+      form.querySelectorAll('input[name="kind"]').forEach(input => { input.disabled = playlistController.batchActive || playlistController.pending; });
+      credentialInput.disabled = playlistController.pending || authRequired !== true;
+    } else setBusy(false);
+  }
+});
 
 function stopPolling() { clearTimeout(pollTimer); pollTimer = null; }
 
@@ -284,7 +302,7 @@ form.querySelectorAll('input[name="kind"]').forEach((input) => {
 
 form.addEventListener("submit", async (event) => {
   event.preventDefault();
-  if (busy || submitting || wakeAttempt || !apiOrigin || leaving) return;
+  if (busy || submitting || wakeAttempt || !apiOrigin || leaving || playlistController?.active) return;
   submitting = true;
   updateSubmit();
   try {
@@ -299,6 +317,11 @@ form.addEventListener("submit", async (event) => {
     activeJobId = null;
     const kind = form.querySelector('input[name="kind"]:checked').value;
     const url = urlInput.value.trim();
+    if (window.MediaLinks?.classify(url).type === "playlist" && playlistController) {
+      jobPanel.hidden = true;
+      await playlistController.preview(window.MediaLinks.classify(url).url);
+      return;
+    }
     showJob();
     setBusy(true);
     jobIndicator.className = "job-indicator is-running";
@@ -371,6 +394,7 @@ fileLink.addEventListener("click", (event) => {
 });
 
 window.addEventListener("pagehide", () => {
+  playlistController?.leave();
   credentialInput.value = "";
   leaving = true;
   connectionRevision += 1;
@@ -380,6 +404,7 @@ window.addEventListener("pagehide", () => {
 window.addEventListener("pageshow", (event) => {
   if (!event.persisted) return;
   leaving = false;
+  playlistController?.restore();
   updateSubmit();
   if (activeJobId && busy) void pollJob();
   else if (busy) showJobError(new Error("La conexión se interrumpió. Esperá unos minutos antes de intentar nuevamente."), "No pudimos confirmar la descarga");

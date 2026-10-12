@@ -79,6 +79,26 @@ En ambos modos, el archivo se entrega con un permiso aleatorio de un solo uso qu
 
 Cuando el trabajo termina, la interfaz solicita el permiso antes de mostrar **Descargar archivo** y asigna su URL validada al enlace real. El clic del usuario abre directamente ese enlace en otra pestaña, con `noopener`, sin Referer y sin un clic simulado después de una request. El backend indica la descarga con `Content-Disposition: attachment`. Si el permiso vence antes del clic, se renueva y la interfaz pide pulsar el enlace nuevamente. El enlace no contiene la clave compartida ni cookies; el permiso breve también es privado y no debe compartirse. Durante la entrega se consulta el estado del trabajo hasta que termine o deje de estar disponible.
 
+## Playlists de YouTube y YouTube Music
+
+Pegá una playlist fija y elegí MP3 o MP4. Se muestra una página de hasta 50 posiciones; **Cargar más** y **Anterior** permiten recorrer toda la lista conservando tus seleccionadas. No hay máximo fijo de canciones por tanda. **Seleccionar página** agrega todas las disponibles de esa página; **Quitar selección de página** conserva las elegidas en otras páginas. Se preparan en orden, una por vez. Antes de iniciar elegí cómo guardarlas:
+
+- **Manual:** un botón por archivo. Al acumular dos listos, guardá alguno y pulsá **Continuar / Comprobar estado**.
+- **Automático:** en Chrome de escritorio u otro navegador compatible, autorizá una carpeta desde el botón de inicio. La app crea un grupo con nombres únicos, guarda por streaming, cierra cada escritura y confirma con el backend antes de preparar la siguiente. No sobrescribe archivos existentes ni sube rutas, permisos o archivos de tu carpeta. El permiso queda en memoria. Si falla, podés autorizar la carpeta nuevamente y continuar; si ya terminó la escritura, repite solamente su confirmación, sin guardar otra copia.
+- **ZIP:** prepara e incorpora una canción por vez; al finalizar, ofrece un enlace nativo para un único ZIP sin recomprimir. `resultado.txt` indica qué posiciones se incluyeron. Si una canción no está disponible, el paquete puede ser parcial. Un límite de espacio/tiempo o cancelación exige **Finalizar ZIP parcial**; no se omiten canciones pendientes silenciosamente.
+
+**Pausar** termina el consumo acotado en curso y detiene la siguiente canción. **Cancelar tanda** interrumpe el trabajo activo. El modo y el formato quedan fijos al iniciar. Un backend que no anuncia los modos nuevos ofrece solamente Manual; no requiere otra variable en Vercel.
+
+Una canción cuyo enlace incluye `list` conserva la descarga individual. Mixes dinámicos y canales no se admiten. Las canciones privadas/ausentes se muestran sin selección; la disponibilidad de metadata no garantiza la descarga. No se cargan miniaturas ni scripts de otros sitios.
+
+Un fallo específico permite avanzar a las otras canciones. Verificación antibot, autorización, red, guardado o paquete incierto pausa la tanda; la continuación es manual. Solo un rechazo explícito del backend anterior a crear el medio permite hasta dos esperas por su cuota, cancelables. Si se pierde una respuesta de inicio, se consulta su estado y no se repite automáticamente. Un enlace vencido se renueva y requiere otro clic. En Manual, si la entrega no comienza en 15 segundos, se ofrece solicitar el enlace otra vez; una entrega sin confirmación después de dos minutos se comprueba manualmente. La escritura automática tiene un plazo de dos minutos y conserva el medio en el backend hasta confirmación o su vencimiento original.
+
+**Cancelar tanda** conserva archivos listos hasta su TTL del backend. **Descartar lista y volver** elimina los archivos restantes y libera el formulario. Recargar pierde la clave y la cola de la página; abandonar detiene nuevos inicios. El backend mantiene los archivos solo durante su retención habitual. Un reinicio pierde tandas/snapshots y exige consultar la lista nuevamente.
+
+Cada consulta de página tiene plazo de 60 segundos; backend usa 45 segundos para metadata. Las páginas ya consultadas mantienen identidades y no se extraen otra vez. Si cargar otra página falla, se conserva la página actual y selección; Continuar reintenta esa misma página. Memoria/bytes, cuota de consultas nuevas y recursos del origen siguen aplicando, con error explícito sin truncar una selección. Salud/despertar conserva dos minutos y reintento manual. No hay llamadas para mantener Render despierto sin tanda activa.
+
+Publicar primero el backend con estas rutas y luego este frontend. `API_BASE_URL` es la única configuración pública. Un backend anterior muestra un aviso de incompatibilidad para listas y permite volver al formulario individual. Para rollback, volver al frontend anterior antes de revertir el backend, conservando acceso protegido cuando se usa una sesión privada. Consultar `PLAYLISTS.md` del repositorio backend para rutas, cuotas 3/5 por ventana y límites de registros.
+
 ## Servicio dormido o interrumpido
 
 - Cada intento de preparar una descarga hace primero `GET /healthz`, sin clave y sin crear un trabajo.

@@ -7,6 +7,9 @@ const output = await build({ local: true });
 const port = Number(process.env.FRONTEND_PORT || 5173);
 if (!Number.isInteger(port) || port < 1 || port > 65535) throw new Error("Invalid FRONTEND_PORT");
 const files = new Map([["/", "index.html"], ["/index.html", "index.html"], ["/app.js", "app.js"], ["/config.js", "config.js"], ["/styles.css", "styles.css"]]);
+files.set("/playlist-links.js", "playlist-links.js");
+files.set("/playlist-controller.js", "playlist-controller.js");
+files.set("/directory-saver.js", "directory-saver.js");
 const types = { ".html": "text/html", ".js": "text/javascript", ".css": "text/css" };
 http.createServer(async (req, res) => {
   const name = files.get(new URL(req.url, "http://localhost").pathname);

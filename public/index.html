@@ -7,6 +7,9 @@
     <title>Video Audio DL · Descarga desde el navegador</title>
     <link rel="stylesheet" href="/styles.css">
     <script src="/config.js" defer></script>
+    <script src="/playlist-links.js" defer></script>
+    <script src="/directory-saver.js" defer></script>
+    <script src="/playlist-controller.js" defer></script>
     <script src="/app.js" defer></script>
   </head>
   <body>
@@ -65,6 +68,38 @@
               <svg viewBox="0 0 24 24" fill="none" aria-hidden="true"><path d="M5 12h14m-6-6 6 6-6 6" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"/></svg>
             </button>
           </form>
+
+          <section id="playlist-panel" class="playlist-panel" aria-labelledby="playlist-title" hidden>
+            <h2 id="playlist-title">Tu lista</h2>
+            <p id="playlist-message" role="status" aria-live="polite"></p>
+            <p id="playlist-count" class="field-hint"></p>
+            <label for="playlist-mode">Cómo guardar la selección</label>
+            <select id="playlist-mode">
+              <option value="manual">Manual: un botón por archivo</option>
+              <option value="automatic" disabled>Automático: guardar en una carpeta</option>
+              <option value="zip" disabled>ZIP: un único archivo comprimido</option>
+            </select>
+            <p id="playlist-mode-hint" class="field-hint">El modo y el formato quedan fijos al iniciar la tanda.</p>
+            <div id="playlist-navigation" class="playlist-row-actions" hidden>
+              <button id="playlist-previous" class="cancel-button" type="button">Anterior</button>
+              <span id="playlist-page" class="field-hint"></span>
+              <button id="playlist-next" class="cancel-button" type="button">Cargar más</button>
+              <button id="playlist-select-page" class="cancel-button" type="button">Seleccionar página</button>
+              <button id="playlist-unselect-page" class="cancel-button" type="button">Quitar selección de página</button>
+            </div>
+            <ul id="playlist-choices" class="playlist-list" aria-label="Canciones disponibles"></ul>
+            <ul id="playlist-results" class="playlist-list" aria-label="Resultados de la tanda" hidden></ul>
+            <div class="playlist-actions">
+              <button id="playlist-start" class="submit-button" type="button" disabled>Preparar selección</button>
+              <button id="playlist-continue" class="submit-button" type="button" hidden>Continuar / Comprobar estado</button>
+              <button id="playlist-pause" class="cancel-button" type="button" hidden>Pausar</button>
+              <button id="playlist-folder" class="cancel-button" type="button" hidden>Autorizar carpeta nuevamente</button>
+              <button id="playlist-finalize" class="cancel-button" type="button" hidden>Finalizar ZIP parcial</button>
+              <a id="playlist-archive-link" class="file-link" target="_blank" rel="noopener noreferrer" referrerpolicy="no-referrer" hidden>Descargar ZIP</a>
+              <button id="playlist-cancel" class="cancel-button" type="button" hidden>Cancelar tanda</button>
+              <button id="playlist-discard" class="cancel-button" type="button">Descartar lista y volver</button>
+            </div>
+          </section>
 
           <section id="job-panel" class="job-panel" aria-live="polite" aria-atomic="false" hidden>
             <div class="job-heading">
